@@ -1,8 +1,8 @@
 import os
 import json
 
-video_base_dir = "C:\\SoccerNetData\\england_epl\\2015-2016"
-commentary_base_dir = "C:\\SoccerNetData\\sn-echoes-main\\Dataset\\whisper_v1\\england_epl\\2015-2016"
+video_base_dir = "C:\\SoccerNetData\\england_epl\\2014-2015"
+commentary_base_dir = "C:\\SoccerNetData\\sn-echoes-main\\Dataset\\whisper_v1\\england_epl\\2014-2015"
 
 for match_dir in os.listdir(video_base_dir):
     video_dir = os.path.join(video_base_dir, match_dir)

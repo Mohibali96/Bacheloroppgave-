@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS matches (
 )
 ''')
 
-video_base_dir = "C:\\SoccerNetData\\england_epl\\2015-2016"
+video_base_dir = "C:\\SoccerNetData\\england_epl\\2014-2015"
 
 for match_dir in os.listdir(video_base_dir):
     match_path = os.path.join(video_base_dir, match_dir)
