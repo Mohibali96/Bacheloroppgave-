@@ -7,7 +7,7 @@ es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
 # Define the index name and search term
 index_name = 'soccernet'
-search_term = "Goal"
+search_term = "Chelsea"
 
 try:
     # Record the start time and initial memory usage
@@ -15,25 +15,60 @@ try:
     process = psutil.Process()
     start_memory = process.memory_info().rss  # Memory in bytes
 
-    # Perform the search query
+    # Perform the search query to get relevant documents
     response = es.search(
         index=index_name,
         body={
             "query": {
-                "match": {
-                    "transcription": search_term
+                "nested": {
+                    "path": "transcription.segments",
+                    "query": {
+                        "match": {
+                            "transcription.segments.text": search_term
+                        }
+                    }
                 }
-            }
+            },
+            "size": 1000  # Adjust size based on expected results
         }
     )
 
-    # Initialize the count
-    total_count = 0
+    # Initialize a list to store timestamps and video paths
+    timestamps = []
 
-    # Iterate through the hits and count occurrences of the search term
+    # Iterate through the hits to collect video paths and timestamps from matching segments
     for hit in response['hits']['hits']:
-        transcription = hit['_source']['transcription']
-        total_count += transcription.lower().count(search_term.lower())
+        # Extract video path and segments
+        video_path = hit['_source'].get('video_path', 'Unknown Path')  # Default to 'Unknown Path' if not present
+        segments = hit['_source']['transcription']['segments']
+        
+        # Check if video_path exists and has segments
+        if video_path and segments:
+            # Print the video path
+            print(f"Video Path: {video_path}")
+
+            # Iterate through each segment to get the start and end times
+            for segment in segments:
+                start_time_value = segment.get("start_time")
+                end_time_value = segment.get("end_time")
+                text = segment.get("text", "")
+                
+                # Check if the search term is present in the segment text
+                if search_term.lower() in text.lower():
+                    # Ensure start_time and end_time are valid before appending
+                    if start_time_value is not None and end_time_value is not None:
+                        timestamps.append((start_time_value, end_time_value))  # Add start and end time as timestamp
+
+            # After listing all timestamps for this video, print them
+            if timestamps:
+                print(f"The term '{search_term}' was mentioned at the following timestamps (start_time - end_time):")
+                for start, end in timestamps:
+                    print(f"{start:.2f} - {end:.2f} seconds")
+            else:
+                print(f"No mentions of '{search_term}' found in this video.")
+
+            # Reset timestamps for next document
+            timestamps = []
 
     # Record end time and memory usage
     end_time = time.time()
@@ -43,8 +78,6 @@ try:
     elapsed_time = end_time - start_time
     memory_used = (end_memory - start_memory) / (1024 * 1024)  # Convert bytes to MB
 
-    # Display results
-    print(f"The term '{search_term}' occurred {total_count} times in the transcriptions.")
     print(f"Search completed in {elapsed_time:.2f} seconds.")
     print(f"Memory used: {memory_used:.2f} MB")
 
