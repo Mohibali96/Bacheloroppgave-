@@ -7,7 +7,9 @@ es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
 # Define the index name and search term
 index_name = 'soccernet'
-search_term = "Chelsea"
+search_term = "the player"
+query_type = "match_phrase"  # Options: "match_phrase", "fuzzy", "multi_match"
+multi_match_type = "best_fields"  # Options: "best_fields", "most_fields", "cross_fields", "phrase", "phrase_prefix"
 
 try:
     # Record the start time and initial memory usage
@@ -15,29 +17,70 @@ try:
     process = psutil.Process()
     start_memory = process.memory_info().rss  # Memory in bytes
 
-    # Perform the search query to get relevant documents
-    response = es.search(
-        index=index_name,
-        body={
+    # Define the search query based on the query type
+    if query_type == "match_phrase":
+        query_body = {
             "query": {
                 "nested": {
                     "path": "transcription.segments",
                     "query": {
-                        "match": {
+                        "match_phrase": {
                             "transcription.segments.text": search_term
                         }
                     }
                 }
             },
-            "size": 1000  # Adjust size based on expected results
+            "size": 5  # Limit results to 5
         }
-    )
+    elif query_type == "fuzzy":
+        query_body = {
+            "query": {
+                "nested": {
+                    "path": "transcription.segments",
+                    "query": {
+                        "fuzzy": {
+                            "transcription.segments.text": {
+                                "value": search_term,
+                                "fuzziness": "AUTO"
+                            }
+                        }
+                    }
+                }
+            },
+            "size": 5  # Limit results to 5
+        }
+    elif query_type == "multi_match":
+        query_body = {
+            "query": {
+                "nested": {
+                    "path": "transcription.segments",
+                    "query": {
+                        "multi_match": {
+                            "query": search_term,
+                            "fields": ["transcription.segments.text"],
+                            "type": multi_match_type
+                        }
+                    }
+                }
+            },
+            "size": 5  # Limit results to 5
+        }
+    else:
+        raise ValueError("Invalid query type specified")
+
+    # Perform the search query to get relevant documents
+    response = es.search(index=index_name, body=query_body)
 
     # Initialize a list to store timestamps and video paths
     timestamps = []
+    max_timestamps = 5  # Maximum number of timestamps to return
+    timestamp_count = 0  # Counter for the number of timestamps collected
 
     # Iterate through the hits to collect video paths and timestamps from matching segments
     for hit in response['hits']['hits']:
+        if timestamp_count >= max_timestamps:
+            break  # Stop processing if the maximum number of timestamps is reached
+
         # Extract video path and segments
         video_path = hit['_source'].get('video_path', 'Unknown Path')  # Default to 'Unknown Path' if not present
         segments = hit['_source']['transcription']['segments']
@@ -49,6 +92,9 @@ try:
 
             # Iterate through each segment to get the start and end times
             for segment in segments:
+                if timestamp_count >= max_timestamps:
+                    break  # Stop processing if the maximum number of timestamps is reached
+
                 start_time_value = segment.get("start_time")
                 end_time_value = segment.get("end_time")
                 text = segment.get("text", "")
@@ -58,6 +104,7 @@ try:
                     # Ensure start_time and end_time are valid before appending
                     if start_time_value is not None and end_time_value is not None:
                         timestamps.append((start_time_value, end_time_value))  # Add start and end time as timestamp
+                        timestamp_count += 1  # Increment the counter
 
             # After listing all timestamps for this video, print them
             if timestamps:
