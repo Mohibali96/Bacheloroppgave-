@@ -7,7 +7,7 @@ es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
 # Define the index name and search term
 index_name = 'soccernet'
-search_term = "the player"
+search_term = " player"
 query_type = "match_phrase"  # Options: "match_phrase", "fuzzy", "multi_match"
 multi_match_type = "best_fields"  # Options: "best_fields", "most_fields", "cross_fields", "phrase", "phrase_prefix"
 
