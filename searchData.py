@@ -5,65 +5,60 @@ from elasticsearch import Elasticsearch, ConnectionError
 # Initialize Elasticsearch client
 es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
 
-def search_videos(index_name, search_term, query_type="fuzzy", multi_match_type="best_fields"):
+def search_videos(index_name, search_phrase):
+    """
+    Search for a phrase or similar phrases in video transcriptions using Elasticsearch.
+
+    Args:
+        index_name (str): Name of the Elasticsearch index.
+        search_phrase (str): Phrase to search for.
+
+    Returns:
+        list: Search results with video paths and timestamps.
+    """
     try:
         # Record the start time and initial memory usage
         start_time = time.time()
         process = psutil.Process()
         start_memory = process.memory_info().rss  # Memory in bytes
 
-        # Define the search query based on the query type
-        if query_type == "match_phrase":
-            query_body = {
-                "query": {
-                    "nested": {
-                        "path": "transcription.segments",
-                        "query": {
-                            "match_phrase": {
-                                "transcription.segments.text": search_term
+        # Define the query for both exact matches and similar phrases
+        query_body = {
+            "query": {
+                "bool": {
+                    "should": [
+                        {  # Exact phrase match
+                            "nested": {
+                                "path": "transcription.segments",
+                                "query": {
+                                    "match_phrase": {
+                                        "transcription.segments.text": search_phrase
+                                    }
+                                }
                             }
-                        }
-                    }
-                },
-                "size": 5  # Limit results to 5
-            }
-        elif query_type == "fuzzy":
-            query_body = {
-                "query": {
-                    "nested": {
-                        "path": "transcription.segments",
-                        "query": {
-                            "fuzzy": {
-                                "transcription.segments.text": {
-                                    "value": search_term,
-                                    "fuzziness": "AUTO"
+                        },
+                        {  # Similar phrases (match query for semantic similarity)
+                            "nested": {
+                                "path": "transcription.segments",
+                                "query": {
+                                    "match": {
+                                        "transcription.segments.text": {
+                                            "query": search_phrase,
+                                            "fuzziness": "AUTO",
+                                            "operator": "and"
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                },
-                "size": 5  # Limit results to 5
-            }
-        elif query_type == "multi_match":
-            query_body = {
-                "query": {
-                    "nested": {
-                        "path": "transcription.segments",
-                        "query": {
-                            "multi_match": {
-                                "query": search_term,
-                                "fields": ["transcription.segments.text"],
-                                "type": multi_match_type
-                            }
-                        }
-                    }
-                },
-                "size": 5  # Limit results to 5
-            }
-        else:
-            raise ValueError("Invalid query type specified")
+                    ],
+                    "minimum_should_match": 1  # At least one condition must match
+                }
+            },
+            "size": 10  # Limit results to 10
+        }
 
-        # Perform the search query to get relevant documents
+        # Perform the search query
         response = es.search(index=index_name, body=query_body)
 
         # Initialize a list to store results
@@ -83,8 +78,8 @@ def search_videos(index_name, search_term, query_type="fuzzy", multi_match_type=
                     end_time_value = segment.get("end_time")
                     text = segment.get("text", "")
 
-                    # Check if the search term is present in the segment text
-                    if search_term.lower() in text.lower():
+                    # Check if the search phrase is present in the segment text
+                    if search_phrase.lower() in text.lower():
                         # Ensure start_time and end_time are valid before appending
                         if start_time_value is not None and end_time_value is not None:
                             timestamps.append((start_time_value, end_time_value))  # Add start and end time as timestamp
@@ -118,7 +113,7 @@ def search_videos(index_name, search_term, query_type="fuzzy", multi_match_type=
 # Example usage (can be removed or commented out when integrating with Flask app)
 if __name__ == "__main__":
     index_name = 'soccernet'
-    search_term = "the player"
-    results = search_videos(index_name, search_term)
+    search_phrase = "goal by David Silva"
+    results = search_videos(index_name, search_phrase)
     for result in results:
         print(result)
