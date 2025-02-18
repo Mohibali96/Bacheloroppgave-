@@ -29,7 +29,7 @@ for match_dir in os.listdir(video_base_dir):
     os.makedirs(output_dir, exist_ok=True)
 
     # Finn alle videofiler i kampmappen
-    video_files = [f for f in os.listdir(match_path) if f.endswith((".mp4"))]
+    video_files = [f for f in os.listdir(match_path) if f.endswith((".mkv"))]
 
     if not video_files:
         print(f"Ingen videofiler funnet i {match_path}. Hoppes over.")
